@@ -45,6 +45,10 @@ from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 
+
+# customized plots 
+
+
 plt.rcParams.update({
     "font.family": "DejaVu Sans",   # or "Liberation Sans" / "Ubuntu"
     "font.weight": "light",
@@ -63,7 +67,7 @@ plt.rcParams.update({
 
 
 
-
+# class 
 
 class DASChannelSelector:
     def __init__(
@@ -82,6 +86,7 @@ class DASChannelSelector:
         os.makedirs(self.output_dir, exist_ok=True)
 
 
+
     def dms_to_decimal(self, dms_str):
         # Dummy converter; replace with actual if needed
         dms = dms_str.strip().replace("°", " ").replace("'", " ").replace('"', ' ')
@@ -93,11 +98,11 @@ class DASChannelSelector:
         """
         Reads a full CSV (with DMS or decimal coordinates), simplifies it,
         and saves a new CSV with only channel_id, longitude, and latitude
-        inside self.output_dir.
+        inside self.output_dir. This is what is needed for spatial clustering
 
         If a 'das_id' field is present, it will be used as channel_id.
         """
-        import os
+        
         output_path = os.path.join(self.output_dir, filename)
 
         # Detect delimiter
@@ -346,6 +351,8 @@ class DASChannelSelector:
 
         ext = os.path.splitext(self.das_data_path)[-1].lower()
 
+        #handling .npy, .mseed or .h5 original files (.h5 might require tuning for the specific structure)
+
         if ext == ".npy":
             data = np.load(self.das_data_path, allow_pickle=True)
             self.sampling_rate = sampling_rate
@@ -383,7 +390,12 @@ class DASChannelSelector:
         # (optional) Show the figure
         plt.close()
 
+        #normalize data 
+        
         data = trace_normalization(data, demean=False, method="rms")
+
+
+        #all processing happens here 
 
         if detrend_data:
             data = detrend(data, axis=1, type='constant')
@@ -391,7 +403,7 @@ class DASChannelSelector:
 
             plt.figure()
             plt.plot(data[100, :], color='k', lw=0.5)
-            plt.title('Example raw normalized trace')
+            plt.title('Example raw detrended normalized trace')
 
             # Save the figure
             plt.savefig("example_raw_normalized_trace.pdf", dpi=300, bbox_inches='tight')
@@ -400,19 +412,15 @@ class DASChannelSelector:
             plt.close()
         pbar.update(1)
 
+
+        
         if apply_taper:
             window = tukey(data.shape[1], alpha=taper_alpha)
             data *= window[np.newaxis, :]
 
-            #data=data-np.mean(data)
-            #ntrs,npts = np.shape(data)
-            #for i in range(ntrs):
-            #    nf=np.max(np.abs(data[i,:]))
-            #    data[i,:]=data[i,:]/nf
         pbar.update(1)
 
         if apply_filter:
-
 
             nyquist = 0.5 * self.sampling_rate
             low = low_freq / nyquist
@@ -470,38 +478,65 @@ class DASChannelSelector:
 
 
     def compute_average_azimuth(self, chunk_size: int = 10):
+        """
+        Compute average azimuth along a path,
+        using sliding window chunks of given size (to avoid influence of mislocated channels).
+        
+        Parameters
+        ----------
+        chunk_size : int, default=10
+            Number of consecutive points per chunk for azimuth calculation.
+        """
+    
         if self.df is None:
             raise RuntimeError("Geometry not loaded.")
         
+        # Store azimuths, distances, and chunk center indices
         azs, dists, centers = [], [], []
-
+    
+        # The last valid starting index for a chunk
         max_index = len(self.lat) - chunk_size
-        for i in range(max_index + 1):  # Sliding window
+    
+        # Iterate over all possible chunks (sliding window)
+        for i in range(max_index + 1):
             i0, i1 = i, i + chunk_size
+    
+            # Start and end point of this chunk
             p0 = (self.lat[i0], self.lon[i0])
             p1 = (self.lat[i1 - 1], self.lon[i1 - 1])
-            p2 = (self.depth[i1 - 1], self.depth[i1 - 1])  # Placeholder if needed
+    
+            # Placeholder for depth (currently not used properly)
+            p2 = (self.depth[i1 - 1], self.depth[i1 - 1])  
+    
+            # Distance between start and end of chunk (meters)
             d = geodesic(p0, p1, p2).meters
             dists.append(d)
-
+    
+            # Compute azimuth (bearing) from p0 to p1
             dlon = np.radians(self.lon[i1 - 1] - self.lon[i0])
             la0, la1 = np.radians(self.lat[i0]), np.radians(self.lat[i1 - 1])
+    
+            # Bearing formula using spherical trigonometry
             x = np.sin(dlon) * np.cos(la1)
             y = np.cos(la0) * np.sin(la1) - np.sin(la0) * np.cos(la1) * np.cos(dlon)
-            az = (np.degrees(np.arctan2(x, y)) + 360) % 360
+            az = (np.degrees(np.arctan2(x, y)) + 360) % 360  # Normalize to [0, 360)
             azs.append(az)
+    
+            # Record center index of this chunk
             centers.append(i + chunk_size // 2)
-
+    
+        # Convert lists to numpy arrays for easier math later
         self.azimuths = np.array(azs)
-        self.cumulative_r = np.insert(np.cumsum(dists), 0, 0.0)[:-1]
+        self.cumulative_r = np.insert(np.cumsum(dists), 0, 0.0)[:-1]  # cumulative distance along path
         self.chunk_centers = np.array(centers)
-
-        # average azimuth vectorially
+    
+        # Compute mean azimuth using vector averaging (avoids wraparound issues at 0/360°)
         rad = np.radians(self.azimuths)
         Q, P = np.sum(np.sin(rad)), np.sum(np.cos(rad))
         self.average_azimuth_deg = (np.degrees(np.arctan2(Q, P)) + 360) % 360
-
+    
         print(f"Chunks: {len(self.azimuths)}, Avg azimuth: {self.average_azimuth_deg:.2f}°")
+    
 
 
     def estimate_dbscan_eps(self, min_samples=10, plot=True):
@@ -671,7 +706,7 @@ class DASChannelSelector:
 
 
     def save_clustering(self, filename="clustering_results.pkl"):
-        # Save cluster labels and scaler for reuse
+        # Save cluster labels and scaler for reuse (to avoid doing clustering on the same geometry for multiple events)
         to_save = {
             "cluster_labels": self.cluster_labels,
             "scaler": self.scaler,  # Store scaler as an attribute in cluster_by_azimuth_distance
@@ -682,6 +717,8 @@ class DASChannelSelector:
         print(f"Clustering results saved to {filename}")
 
     def load_clustering(self, filename="clustering_results.pkl"):
+        '''load previously identified clusters'''
+        
         data = joblib.load(filename)
         self.cluster_labels = data["cluster_labels"]
         self.scaler = data["scaler"]
