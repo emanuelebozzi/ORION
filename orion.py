@@ -1,46 +1,46 @@
-# Standard Libraries
+#Libraries
 import os
 import glob
 import shutil
 import csv
 import random
 
-# Numerical & Data Handling
+
 import numpy as np
 import pandas as pd
 
-# Plotting
+
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.colors import Normalize, ListedColormap, BoundaryNorm
 import seaborn as sns
 from mpl_toolkits.basemap import Basemap
 
-# Signal Processing
+
 from scipy.signal import detrend, tukey, butter, filtfilt, correlate, find_peaks
 from scipy.ndimage import gaussian_filter1d
 from scipy.interpolate import griddata
 
-# Machine Learning
+
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import NearestNeighbors
 from kneed import KneeLocator
 
-# Geospatial
+
 from geopy.distance import geodesic
 
-# ObsPy (Seismic Data)
+
 from obspy import read, Stream, Trace, UTCDateTime
 from obspy.signal.trigger import classic_sta_lta, trigger_onset
 
-# Utilities
+
 import joblib
 
-# Custom modules
+
 from read_h5 import Das_h5
 
-# Progress bars
+
 from tqdm import tqdm
 
 import matplotlib.pyplot as plt
@@ -60,22 +60,22 @@ plt.rcParams.update({
     "figure.titlesize": 16,
     "lines.linewidth": 1,
     "lines.markersize": 4,
-    "axes.linewidth": 1.5,   # <<< Thicker axis edge (default ~0.8)
+    "axes.linewidth": 1.5,   
     "grid.linewidth": 0.5,
     "grid.alpha": 0.3,
 })
 
 
 
-# class 
+##################  ORION class ######################
 
 class DASChannelSelector:
     def __init__(
         self,
-        name: str,
-        geometry_path: str,
-        das_data_path: str,
-        output_dir: str = "output"  # Default to 'output' directory
+        name: str,#name of the das dataset
+        geometry_path: str, #path to the geometry file
+        das_data_path: str, #path to the data file
+        output_dir: str = "output" #path to output directory
     ):
         self.name = name
         self.geometry_path = geometry_path
@@ -88,7 +88,7 @@ class DASChannelSelector:
 
 
     def dms_to_decimal(self, dms_str):
-        # Dummy converter; replace with actual if needed
+        
         dms = dms_str.strip().replace("°", " ").replace("'", " ").replace('"', ' ')
         parts = list(map(float, dms.split()))
         sign = -1 if "-" in dms_str else 1
@@ -129,7 +129,7 @@ class DASChannelSelector:
         elif 'channel_id' not in df.columns:
             df['channel_id'] = np.arange(len(df))
 
-        # Save simplified
+        # Save simplified file
         simplified = df[['channel_id', 'longitude', 'latitude']].copy()
         os.makedirs(self.output_dir, exist_ok=True)
         simplified.to_csv(output_path, index=False)
@@ -162,7 +162,7 @@ class DASChannelSelector:
 
         df = df.dropna(subset=['latitude', 'longitude'])
 
-        # Save to class
+        # Save to class attributes
         self.df = df
         self.lat = df['latitude'].to_numpy()
         self.lon = df['longitude'].to_numpy()
@@ -235,7 +235,7 @@ class DASChannelSelector:
             raise ValueError("Invalid filter type. Use 'lowpass', 'highpass', or 'bandpass'.")
         # Design IIR filter using iirfilter
         z, p, k = iirfilter(order, normal_cutoff, btype=filter_type, ftype='butter', output='zpk')
-        # Convert to second-order sections (SOS) for numerical stability
+        # Convert to second-order sections for numerical stability
         sos = zpk2sos(z, p, k)
         return sos            
 
@@ -246,7 +246,7 @@ class DASChannelSelector:
         Apply an IIR filter (lowpass, highpass, or bandpass) using zpk2sos and iirfilter.
 
         Parameters:
-        - data: 2D numpy array where each row is a time series (shape (n_rows, n_samples)).
+        - data: 2D numpy array where each row is a time series (shape (n_rows, n_samples). This is DAS data!
         - filter_type: Type of filter ('lowpass', 'highpass', 'bandpass').
         - cutoff_freqs: Critical frequencies for the filter. Should be:
           - A single float for 'lowpass' and 'highpass'.
@@ -259,12 +259,12 @@ class DASChannelSelector:
         - filtered_data: The filtered data as a 2D numpy array.
         """
         
-        # Design the IIR filter using iirfilter and convert to SOS form
+        # Design the IIR filter 
         sos = self.__design_iir_filter(cutoff_freqs, filter_type, order)
         
         # Apply the filter row-wise (to each time series)
         if zerophase:
-            # Zero-phase filtering using sosfiltfilt
+            
             filtered_data = np.array([sosfiltfilt(sos, row) for row in data])
         else:
             # Regular filtering using sosfilt (causal)
@@ -276,15 +276,15 @@ class DASChannelSelector:
 
     def read_das_data(
         self,
-        sampling_rate: int = 500,
-        detrend_data: bool = True,
-        apply_filter: bool = True,
-        apply_taper: bool = True,
-        taper_alpha: float = 0.01,
-        low_freq: float = 2.0,
-        high_freq: float = 30.0,
-        dx: float = 2.0, 
-        remove_k0: bool = False
+        sampling_rate: int = 500, #Das data sampling rate
+        detrend_data: bool = True, #detrend time series 
+        apply_filter: bool = True, #apply basic filtering
+        apply_taper: bool = True, #apply tapering
+        taper_alpha: float = 0.01, #percentahe tapering 
+        low_freq: float = 2.0, #low freq. bound 
+        high_freq: float = 30.0, #high freq. bound
+        dx: float = 2.0, #channel spacing for FK filtering
+        remove_k0: bool = False #remove k = 0, often referred as "optical noise" in DAS data 
     ):
         steps = [
             "Loading data",
@@ -299,7 +299,7 @@ class DASChannelSelector:
 
         def trace_normalization(data, demean=False, method="max", eps=1e-12):
             """
-            Normalize traces in a 2D array.
+            Normalize traces in a 2D array (which is our DAS data)
 
             Parameters
             ----------
@@ -337,7 +337,7 @@ class DASChannelSelector:
                 else:
                     raise ValueError("method must be 'max' or 'rms'")
 
-                # Avoid division by zero / tiny numbers
+                # Avoid division by zero / tiny numbers (This helps stability, already checked that it helps)
                 nf = max(nf, eps)
 
                 data[i, :] = trace / nf
@@ -345,13 +345,13 @@ class DASChannelSelector:
             return data
 
         
-
+        #This prints stuff to monitor the process 
         steps = [step for step in steps if step is not None]
         pbar = tqdm(total=len(steps), desc="read_das_data", unit="step")
 
         ext = os.path.splitext(self.das_data_path)[-1].lower()
-
-        #handling .npy, .mseed or .h5 original files (.h5 might require tuning for the specific structure)
+       
+        #handling .npy, .mseed or .h5 original files (.h5 requires tuning for the specific structure, of course, as it's an "open structure")
 
         if ext == ".npy":
             data = np.load(self.das_data_path, allow_pickle=True)
@@ -380,6 +380,7 @@ class DASChannelSelector:
 
         pbar.update(1)  # Loading data done
 
+        #plot a trace to check everything is fine 
         plt.figure()
         plt.plot(data[100, :], color='k', lw=0.5)
         plt.title('Example raw trace')
@@ -452,7 +453,7 @@ class DASChannelSelector:
 
             self.das_data = trace_normalization(data, demean=False, method="rms")
 
-            return self.das_data
+            return self.das_data  #This is DAS data after pre-processing 
 
         else:
             pbar.update(1)
@@ -512,20 +513,20 @@ class DASChannelSelector:
             d = geodesic(p0, p1, p2).meters
             dists.append(d)
     
-            # Compute azimuth (bearing) from p0 to p1
+            # Compute azimuth 
             dlon = np.radians(self.lon[i1 - 1] - self.lon[i0])
             la0, la1 = np.radians(self.lat[i0]), np.radians(self.lat[i1 - 1])
     
-            # Bearing formula using spherical trigonometry
+           
             x = np.sin(dlon) * np.cos(la1)
             y = np.cos(la0) * np.sin(la1) - np.sin(la0) * np.cos(la1) * np.cos(dlon)
             az = (np.degrees(np.arctan2(x, y)) + 360) % 360  # Normalize to [0, 360)
             azs.append(az)
     
-            # Record center index of this chunk
+            # Append the value to the center of the chunk
             centers.append(i + chunk_size // 2)
     
-        # Convert lists to numpy arrays for easier math later
+        # Convert lists to numpy arrays 
         self.azimuths = np.array(azs)
         self.cumulative_r = np.insert(np.cumsum(dists), 0, 0.0)[:-1]  # cumulative distance along path
         self.chunk_centers = np.array(centers)
@@ -743,8 +744,7 @@ class DASChannelSelector:
         import numpy as np
         import os
 
-        # --- Ranges with margin ---
-        # --- Ranges with margin ---
+
         margin = 0.01
 
         # original ranges
@@ -768,26 +768,26 @@ class DASChannelSelector:
 
 
 
-        # --- Figure ---
+        
         fig, ax = plt.subplots(figsize=(7, 7), dpi=300, subplot_kw={'projection': ccrs.PlateCarree()})
 
-        # --- Offline relief: land & ocean with simple shading ---
+        
         ax.add_feature(cfeature.LAND.with_scale('10m'), facecolor='lightgray', zorder=0)
         ax.add_feature(cfeature.OCEAN.with_scale('10m'), facecolor='whitesmoke', zorder=0)
         ax.add_feature(cfeature.LAKES.with_scale('10m'), facecolor='whitesmoke', zorder=0)
         ax.add_feature(cfeature.RIVERS.with_scale('10m'), facecolor='whitesmoke', zorder=1)
 
-        # --- Coastlines & borders ---
+        
         ax.add_feature(cfeature.COASTLINE.with_scale('10m'), linewidth=0.6, zorder=1)
         ax.add_feature(cfeature.BORDERS.with_scale('10m'), linewidth=0.6, zorder=1)
 
-        # --- Set extent ---
+        
         ax.set_extent([lon_range[0], lon_range[1], lat_range[0], lat_range[1]])
 
-        # --- Gridlines ---
+       
         ax.gridlines(draw_labels=True, linewidth=0.3, color='gray', alpha=0.5)
 
-        # --- Cluster Colors ---
+       
         unique_labels = sorted(set(self.cluster_labels))
         unique_non_noise = [lbl for lbl in unique_labels if lbl != -1]
         num_clusters = len(unique_non_noise)
@@ -833,7 +833,7 @@ class DASChannelSelector:
                 
                 ax.scatter(lon[mask], lat[mask], c=[cmap(norm(lbl))], s=35, marker='^', facecolors='none',linewidth=0.2, zorder=5)
 
-        # --- Discrete colorbar ---
+        #Discrete colorbar 
         
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
@@ -841,40 +841,42 @@ class DASChannelSelector:
         cbar.ax.set_yticklabels([str(lbl) for lbl in unique_non_noise])
         cbar.set_label("Cluster ID")
 
-        # --- Title and labels ---
+        #Title and labels
         ax.set_title("Spatial clustering")
         ax.set_xlabel("Longitude")
         ax.set_ylabel("Latitude")
 
-        # --- Noise legend only ---
+        #Noise legend only ---
         #ax.legend(loc="upper right")
 
         plt.tight_layout()
 
-        # --- Save as vector graphic ---
+        #Save as vector graphic 
         output_path = os.path.join(self.output_dir, f"{self.name}_spatial_clustering.pdf")
         plt.savefig(output_path, bbox_inches="tight")
         plt.close()
 
 
+    ##################### THIS IS THE SELECTOR #####################
+
     def analyze_waveforms_and_select_best(
         self,
         gauge_length=10,
         subsection_size: int = 20,
-        win_snr=0.5,
+        win_snr=0.5,#to identify event
         step_snr=0.1,
-        win=2,
+        win=2, #to perform waveform attribute computation
         start_event=None,
-        percentile=50,
-        sta_window_sec=2.0, 
-        lta_window_sec=10.0, 
-        sta_lta_on=2.5, 
-        sta_lta_off=1.0,
-        snr_score_weight=0.5,
-        coherence_score_weight=0.5,
-        noise_rms_weight=0.2,
-        n_final_select: int = 10,   # <<< NEW PARAM
-        min_channel_distance: int = 5,  # <<< NEW PARAM: minimum distance between selected channels
+        percentile=50, #final refinement based on the percentile of the channel quality scores 
+        sta_window_sec=2.0, #optional 
+        lta_window_sec=10.0, #optional
+        sta_lta_on=2.5,  #optinoal 
+        sta_lta_off=1.0, #optional 
+        snr_score_weight=0.5, #weight of the snr
+        coherence_score_weight=0.5, #weight of the local coherence
+        noise_rms_weight=0.2, #weight of the noise rms 
+        n_final_select: int = 10,   # NUmber of final channels (if you choose to output a pre-deifned number of channels)
+        min_channel_distance: int = 5,  # minimum distance between selected channels
     ):
         """
         Analyze DAS waveform data, compute SNR, coherence, and noise power for each trace,
@@ -890,9 +892,7 @@ class DASChannelSelector:
             Minimum number of channels between selected traces within the same section/subsection.
         """
 
-        # ------------------------
-        # Helper functions
-        # ------------------------
+        
         def print_progress_bar(iteration, total, prefix='', suffix='', length=40):
             percent = f"{100 * (iteration / float(total)):.1f}"
             filled_length = int(length * iteration // total)
@@ -902,7 +902,7 @@ class DASChannelSelector:
                 print()
 
         def remove_outliers(data):
-            q1 = np.percentile(data, 10)
+            q1 = np.percentile(data, 10) # focus on 10-90 percentile for robustness to local coherent noise 
             q3 = np.percentile(data, 90)
             return (data >= q1) & (data <= q3)
 
@@ -1000,14 +1000,13 @@ class DASChannelSelector:
             ptp = np.ptp(arr)
             return (arr - np.min(arr)) / (ptp + 1e-10)
 
-        # ------------------------
-        # Main Processing
-        # ------------------------
+        #Processing pipeline 
+        
         traces = self.das_data
         das_ids = np.array(self.das_id)
         total_traces = len(traces)
 
-        # 1. Start times
+        # 1. Compute start time, which is needed for waveform attributes computation (if needed)
         if start_event is None:
             raw_start_times = []
             for i, (did, tr) in enumerate(zip(das_ids, traces), 1):
@@ -1020,21 +1019,21 @@ class DASChannelSelector:
         else:
             start_signal = {did: start_event for did in das_ids}
 
-        # 2. SNR + RMS
+        # 2. Compute SNR and RMS based on the start time
         snr_dict, rms_dict = {}, {}
         for i, (did, tr) in enumerate(zip(das_ids, traces), 1):
             snr_val, rms_val = compute_snr_rms(tr, start_signal[did], win, self.sampling_rate)
             snr_dict[did], rms_dict[did] = snr_val, rms_val
             print_progress_bar(i, total_traces, prefix='SNR+RMS:', suffix='Complete')
 
-        # 3. Coherence
+        # 3. Compute Coherence
         coherence_dict = {}
         for i, did in enumerate(das_ids, 1):
             coh = compute_coherence(did, das_ids, traces, self.sampling_rate, start_signal[did], win)
             coherence_dict[did] = coh
             print_progress_bar(i, total_traces, prefix='Coherence:', suffix='Complete')
 
-        # 4. Outlier filtering + scores
+        # 4. Outlier filtering + and channel quality scores
         snrs = np.array([snr_dict[d] for d in das_ids])
         rms_noises = np.array([rms_dict[d] for d in das_ids])
         coherences = np.array([coherence_dict[d] for d in das_ids])
@@ -1062,7 +1061,7 @@ class DASChannelSelector:
         positive_scores = trace_scores[trace_scores > 0]
         lower_bound = np.percentile(positive_scores, percentile) if len(positive_scores) > 0 else 0
 
-        # 5. Group by sections (cluster labels)
+        # 5. Group channel quality scores in each cable sections 
         labels = self.cluster_labels[: len(das_ids)]
         section_data = {}
         for did, lb in zip(das_ids, labels):
@@ -1090,7 +1089,7 @@ class DASChannelSelector:
                 if avg_section_score < lower_bound:
                     continue
                 
-                # --- Select best trace respecting min_channel_distance globally ---
+                # elect best trace global 
                 sec_sorted = sorted(sec, key=lambda x: x[4], reverse=True)
                 selected_in_sec = []
                 selected_channels_local = []
@@ -1116,7 +1115,7 @@ class DASChannelSelector:
             print("No sections passed threshold.")
             return [], [], [], []
 
-        # --- Option to select only top-N final traces ---
+        # Option to select only top-N final traces 
         if n_final_select is not None:
             # sort by score (descending) first
             sorted_by_score = sorted(
@@ -1166,7 +1165,7 @@ class DASChannelSelector:
         os.makedirs(output_path, exist_ok=True)
         selection_path = os.path.join(output_path, "selected_waveforms.txt")
 
-        # --- Read full original Orion selection ---
+        # Read full original Orion selection 
         full_selected_traces = []
         with open(selection_path, "r") as file:
             next(file)  # Skip header
@@ -1178,7 +1177,7 @@ class DASChannelSelector:
                 das_id = int(float(parts[1]))
                 full_selected_traces.append((section_id, das_id))
 
-        # --- Subsample Orion selection if requested ---
+        # Subsample Orion selection if requested 
         selected_traces = full_selected_traces
         if n_subset_orion and n_subset_orion < len(full_selected_traces):
             step = len(full_selected_traces) / n_subset_orion
@@ -1186,7 +1185,7 @@ class DASChannelSelector:
 
         num_channels = self.das_data.shape[0]
 
-        # --- Helper: stack ±4 before, +5 after neighbors ---
+        #  stack ±4 before, +5 after neighbors 
         def create_stacked_stream(traces_list):
             stacked_stream = Stream()
             for _, das_id in traces_list:
@@ -1209,17 +1208,17 @@ class DASChannelSelector:
                     stacked_stream.append(stacked_trace)
             return stacked_stream
 
-        # --- Save stacked full Orion selection ---
+        # Save stacked full Orion selection 
         full_stacked_stream = create_stacked_stream(full_selected_traces)
         full_stacked_file = os.path.join(output_path, "full_selected_traces.mseed")
         full_stacked_stream.write(full_stacked_file, format="MSEED")
 
-        # --- Save stacked final selection (subsampled) ---
+        # Save stacked final selection (subsampled) 
         final_stacked_stream = create_stacked_stream(selected_traces)
         final_stacked_file = os.path.join(output_path, "selected_traces.mseed")
         final_stacked_stream.write(final_stacked_file, format="MSEED")
 
-        # --- Save unstacked uniformly spaced traces from non-selected channels ---
+        # Save unstacked uniformly spaced traces from non-selected channels 
         selected_ids = {das_id for _, das_id in full_selected_traces}
         all_ids = np.array([i for i in range(num_channels) if i not in selected_ids])
 
@@ -1245,7 +1244,7 @@ class DASChannelSelector:
         full_uniform_file = os.path.join(output_path, "full_uniform_traces.mseed")
         full_uniform_stream.write(full_uniform_file, format="MSEED")
 
-        # --- Optionally save every 10th non-selected trace ---
+        # Optionally save every 10th non-selected trace
         if save_non_selected:
             all_non_selected_stream = Stream()
             every_10th_ids = [i for i in range(0, num_channels, 10) if i not in selected_ids]
@@ -1262,7 +1261,7 @@ class DASChannelSelector:
             non_selected_output_file = os.path.join(output_path, "non_selected.mseed")
             all_non_selected_stream.write(non_selected_output_file, format="MSEED")
 
-        # --- Summary ---
+        # Summary 
         print(
             f"Saved full selected (stacked) traces: {len(full_stacked_stream)} traces\n"
             f"Saved final selected (stacked) traces: {len(final_stacked_stream)} traces\n"
@@ -1282,7 +1281,7 @@ class DASChannelSelector:
         stacked_file = os.path.join(input_dir, "full_selected_traces.mseed")
         picks_file = os.path.join(input_dir, "selected_waveforms.txt")
 
-        # --- Load picks from .txt ---
+        # Load picks from .txt 
         if os.path.exists(picks_file):
             with open(picks_file, "r") as f:
                 lines = f.readlines()[1:]  # Skip header
@@ -1300,7 +1299,7 @@ class DASChannelSelector:
                         p_pick = s_pick = None
                     picks_dict[section_id] = (p_pick, s_pick)
 
-        # --- Load selected traces ---
+        # Load selected traces 
         try:
             selected_stream = read(selected_file)
             for tr in selected_stream:
@@ -1309,7 +1308,7 @@ class DASChannelSelector:
         except Exception as e:
             print(f"Error reading selected traces: {e}")
 
-        # --- Load stacked traces ---
+        # Load stacked traces 
         try:
             stacked_stream = read(stacked_file)
             for tr in stacked_stream:
@@ -1322,7 +1321,7 @@ class DASChannelSelector:
             print("No traces found.")
             return {}
 
-        # --- Sort section_ids numerically ---
+        # Sort section_ids numerically 
         def sort_key(k):
             try:
                 return float(k)
@@ -1331,7 +1330,7 @@ class DASChannelSelector:
 
         sorted_section_ids = sorted(trace_dict.keys(), key=sort_key)
 
-        # --- Plot ---
+        # Plot 
         cmap = cm.get_cmap('tab20c')
         plt.figure(figsize=(12, 6 + len(trace_dict) * 0.2), dpi=300)
 
@@ -1434,7 +1433,7 @@ class DASChannelSelector:
         plt.close()
         print(f"Plot saved to: {output_path}")
 
-        # --- Second figure with selected traces ---
+        # Second figure with selected traces 
         plt.figure(figsize=(7, 6), dpi=200)
 
         im = plt.imshow(
@@ -1452,7 +1451,7 @@ class DASChannelSelector:
         plt.ylabel("DAS ID")
         plt.title("Automatic DAS channel selection")
 
-        # --- Read selected traces from file ---
+        # Read selected traces from file 
         selected_traces = []
         with open(wav, "r") as f:
             for line in f:
@@ -1497,7 +1496,7 @@ class DASChannelSelector:
         cmap = ListedColormap(extended_palette)
         norm = BoundaryNorm(unique_non_noise + [max(unique_non_noise) + 1], cmap.N)
 
-        # --- Overlay selected traces with cluster colors ---
+        # Overlay selected traces with cluster colors 
         vertical_scale = 50
         for section_id, trace_index in selected_traces:
             if not (0 <= trace_index < num_traces):
@@ -1538,7 +1537,7 @@ class DASChannelSelector:
                 label = 'Selected channel'
             )  # colored trace
 
-        # --- Build legend with unique cluster IDs ---
+        # Build legend with unique cluster IDs 
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
         plt.legend(by_label.values(), by_label.keys(), loc="upper right")
