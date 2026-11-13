@@ -1,6 +1,6 @@
 *** New version more user-friendly Nov. 2026 *** Download ORION_V2 and you'll find a one-minute instruction to run the DAS channel selector.
 
-Please feel free to contact me for any suggestion or specific applications!
+Please feel free to contact me for any suggestion or specific applications! emanuele.bozzi96@gmail.com
 
 How to cite: 
 
